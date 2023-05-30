@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>F122 Real Time Telemetry Data</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+      body {
+        margin: 0;
+        padding: 20px;
+      }
+
+      h1 {
+        text-align: center;
+      }
+
+      .chart-container {
+        width: 100%;
+        height: 300px;
+        margin-bottom: 20px;
+      }
+
+      #data-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+      }
+
+      #data-container h3 {
+        margin: 0;
+      }
+
+      #data-container ul {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      #data-container ul li {
+        margin-bottom: 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>F122 Real Time Telemetry Data</h1>
+
+    <div id="data-container">
+      <div>
+        <h3>Tire Temperatures</h3>
+        <ul id="tire-temperatures"></ul>
+      </div>
+      <div>
+        <h3>Brake Temperatures</h3>
+        <ul id="brake-temperatures"></ul>
+      </div>
+      <div>
+        <h3>Speed</h3>
+        <p id="speed">0 km/h</p>
+      </div>
+    </div>
+
+    <div class="chart-container">
+      <canvas id="throttle-brake-chart"></canvas>
+    </div>
+
+    <div class="chart-container">
+      <canvas id="steering-chart"></canvas>
+    </div>
+
+    <script>
+      // Create a WebSocket connection
+      const socket = new WebSocket('ws://localhost:3000');
+
+      // Initialize throttle and brake chart
+      const throttleBrakeCtx = document.getElementById('throttle-brake-chart').getContext('2d');
+      const throttleBrakeChart = new Chart(throttleBrakeCtx, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [
+            {
+              label: 'Throttle',
+              data: [],
+              backgroundColor: 'rgba(54, 162, 235, 0.2)',
+              borderColor: 'rgba(54, 162, 235, 1)',
+              borderWidth: 1,
+              fill: 'origin',
+              lineTension: 0.3,
+            },
+            {
+              label: 'Brake',
+              data: [],
+              backgroundColor: 'rgba(255, 99, 132, 0.2)',
+              borderColor: 'rgba(255, 99, 132, 1)',
+              borderWidth: 1,
+              fill: 'origin',
+              lineTension: 0.3,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              type: 'linear',
+              position: 'bottom',
+              ticks: {
+                stepSize: 1,
+                callback: function (value) {
+                return value + ' tenths';
+          },
+              },
+            },
+            y: {
+              min: 0,
+              max: 100,
+              ticks: {
+                stepSize: 10,
+                callback: function (value) {
+                  return value + '%';
+                },
+              },
+            },
+          },
+        },
+      });
+
+      // Initialize steering chart
+      const steeringCtx = document.getElementById('steering-chart').getContext('2d');
+      const steeringChart = new Chart(steeringCtx, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [
+            {
+              label: 'Steering Input',
+              data: [],
+              backgroundColor: 'rgba(75, 192, 192, 0.2)',
+              borderColor: 'rgba(75, 192, 192, 1)',
+              borderWidth: 1,
+              fill: 'origin',
+              lineTension: 0.3,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              type: 'linear',
+              position: 'bottom',
+              ticks: {
+                stepSize: 1,
+                callback: function (value) {
+                  return value + ' tenths';
+                },
+              },
+            },
+            y: {
+              min: -100,
+              max: 100,
+              ticks: {
+                stepSize: 10,
+                callback: function (value) {
+                  return value + '%';
+                },
+              },
+            },
+          },
+        },
+      });
+
+      // Update tire temperatures
+      function updateTireTemperatures(tireTemperatures) {
+        const tireTemperaturesList = document.getElementById('tire-temperatures');
+        tireTemperaturesList.innerHTML = '';
+
+        for (const [index, temperature] of tireTemperatures.entries()) {
+          const listItem = document.createElement('li');
+          listItem.textContent = `Tire ${index + 1}: ${temperature}°C`;
+          tireTemperaturesList.appendChild(listItem);
+        }
+      }
+
+      // Update brake temperatures
+      function updateBrakeTemperatures(brakeTemperatures) {
+        const brakeTemperaturesList = document.getElementById('brake-temperatures');
+        brakeTemperaturesList.innerHTML = '';
+
+        for (const [index, temperature] of brakeTemperatures.entries()) {
+          const listItem = document.createElement('li');
+          listItem.textContent = `Brake ${index + 1}: ${temperature}°C`;
+          brakeTemperaturesList.appendChild(listItem);
+        }
+      }
+
+      // Update speed
+      function updateSpeed(speed) {
+        const speedElement = document.getElementById('speed');
+        speedElement.textContent = `${speed} km/h`;
+      }
+
+      socket.addEventListener('message', (event) => {
+        const telemetryData = JSON.parse(event.data);
+
+        const throttle = telemetryData.THROTTLE * 100;
+        const brake = telemetryData.BRAKE * 100;
+        const steering = telemetryData.STEER * 100;
+        const tireTemperatures = telemetryData.TYRESINNERTEMPERATURE;
+        const brakeTemperatures = telemetryData.BRAKESTEMPERATURE;
+        const speed = telemetryData.SPEED;
+
+        // Update throttle and brake chart
+        throttleBrakeChart.data.labels.push(throttleBrakeChart.data.labels.length);
+        throttleBrakeChart.data.datasets[0].data.push(throttle);
+        throttleBrakeChart.data.datasets[1].data.push(brake);
+        throttleBrakeChart.update();
+
+        // Update steering chart
+        steeringChart.data.labels.push(steeringChart.data.labels.length);
+        steeringChart.data.datasets[0].data.push(steering);
+        steeringChart.update();
+
+        // Update tire temperatures
+        updateTireTemperatures(tireTemperatures);
+
+        // Update brake temperatures
+        updateBrakeTemperatures(brakeTemperatures);
+
+        // Update speed
+        updateSpeed(speed);
+      });
+
+      socket.addEventListener('close', () => {
+        console.log('WebSocket connection closed');
+      });
+    </script>
+  </body>
+</html>
