@@ -6,14 +6,41 @@ import { KAFKA_CONFIG, SCHEMA_REGISTRY_CONFIG } from "./KAFKA_CONFIG";
 async function sendData() {
     const kafka = new Kafka(KAFKA_CONFIG);
     const schemaRegistryClient = new SchemaRegistry(SCHEMA_REGISTRY_CONFIG)
-    const telemetryDataSchema = await schemaRegistryClient.getLatestSchemaId('telemetryDataStream-value')
+    const telemetryDataSchema = await schemaRegistryClient.getLatestSchemaId('telemetryData-value')
+    const motionDataSchema = await schemaRegistryClient.getLatestSchemaId('motionDataStream-value')
+    const lapDataSchema = await schemaRegistryClient.getLatestSchemaId('lapDataStream-value')
     const producer = kafka.producer();
     await producer.connect()
-    var sessionData, lapData, setupData, historyData, telemetryData;
+    var sessionData, lapData, setupData, motionData, historyData, telemetryData;
 
     const f122: F122UDP = new F122UDP();
     f122.start();
 
+    f122.on('motion', async function (data) {
+        const playerCarIndex = data.m_header.m_playerCarIndex;
+        motionData = {
+            PLAYERCARPOSITIONX: data.m_carMotionData[playerCarIndex].m_worldPositionX,
+            PLAYERCARPOSITIONY: data.m_carMotionData[playerCarIndex].m_worldPositionY,
+            PLAYERCARPOSITIONZ: data.m_carMotionData[playerCarIndex].m_worldPositionZ,
+            OTHERCARPOSITIONS: data.m_carMotionData
+            .filter((_, index) => index !== playerCarIndex)
+            .map(car => ({
+              X: car.m_worldPositionX,
+              Y: car.m_worldPositionY,
+              Z: car.m_worldPositionZ
+            }))
+        };
+            
+        const key = 'motionData'
+        const value = await schemaRegistryClient.encode(motionDataSchema,motionData)
+        producer.send({
+            topic:'motionDataStream',
+            messages:[{key,value}]
+        })
+      
+        // console.log(motionData);
+    });
+      
     f122.on('session', async function (data) {
         sessionData = {
             weather: data.m_weather,
@@ -28,47 +55,33 @@ async function sendData() {
             pitStopWindowLatestLap: data.m_pitStopWindowLatestLap,
             pitStopRejoinPosition: data.m_pitStopRejoinPosition
         };
-        // console.log(sessionData)
-
-        // const key = 'session_data'
-        // const value = await schemaRegistryClient.encode(sessionDataSchema,{
-        //     weather: data.m_weather,
-        //     trackTemperature: data.m_trackTemperature,
-        //     airTemperature: data.m_airTemperature,
-        //     totalLaps: data.m_totalLaps,
-        //     trackLength: data.m_trackLength,
-        //     sessionType: data.m_sessionType,
-        //     numWeatherForecastSamples: data.m_numWeatherForecastSamples,
-        //     forecastAccuracy: data.m_forecastAccuracy,
-        //     pitStopWindowIdealLap: data.m_pitStopWindowIdealLap,
-        //     pitStopWindowLatestLap: data.m_pitStopWindowLatestLap,
-        //     pitStopRejoinPosition: data.m_pitStopRejoinPosition
-        // })
-        
-        // producer.send({
-        //     topic: 'session_data',
-        //     messages: [{key,value}]
-        // })
     });
 
-    f122.on('lapData', function (data) {
+    f122.on('lapData', async function (data) {
         lapData = {
-            lastLapTime: data.m_lapData[data.m_header.m_playerCarIndex].m_lastLapTimeInMS,
-            currentLapTime: data.m_lapData[data.m_header.m_playerCarIndex].m_currentLapTimeInMS,
-            sector1Time: data.m_lapData[data.m_header.m_playerCarIndex].m_sector1TimeInMS,
-            sector2Time: data.m_lapData[data.m_header.m_playerCarIndex].m_sector2TimeInMS,
-            lapDistance: data.m_lapData[data.m_header.m_playerCarIndex].m_lapDistance,
-            totalDistance: data.m_lapData[data.m_header.m_playerCarIndex].m_totalDistance,
-            carPosition: data.m_lapData[data.m_header.m_playerCarIndex].m_carPosition,
-            currentLapNum: data.m_lapData[data.m_header.m_playerCarIndex].m_currentLapNum,
-            pitStatus: data.m_lapData[data.m_header.m_playerCarIndex].m_pitStatus,
-            numPitStops: data.m_lapData[data.m_header.m_playerCarIndex].m_numPitStops,
-            sector: data.m_lapData[data.m_header.m_playerCarIndex].m_sector,
-            warnings: data.m_lapData[data.m_header.m_playerCarIndex].m_warnings,
-            gridPosition: data.m_lapData[data.m_header.m_playerCarIndex].m_gridPosition,
-            pitLaneTimeInLane: data.m_lapData[data.m_header.m_playerCarIndex].m_pitLaneTimeInLaneInMS,
-            pitStopTimer: data.m_lapData[data.m_header.m_playerCarIndex].m_pitStopTimerInMS,
-        }
+            LAST_LAP_TIME: data.m_lapData[data.m_header.m_playerCarIndex].m_lastLapTimeInMS,
+            CURRENT_LAP_TIME: data.m_lapData[data.m_header.m_playerCarIndex].m_currentLapTimeInMS,
+            SECTOR1_TIME: data.m_lapData[data.m_header.m_playerCarIndex].m_sector1TimeInMS,
+            SECTOR2_TIME: data.m_lapData[data.m_header.m_playerCarIndex].m_sector2TimeInMS,
+            LAP_DISTANCE: data.m_lapData[data.m_header.m_playerCarIndex].m_lapDistance,
+            TOTAL_DISTANCE: data.m_lapData[data.m_header.m_playerCarIndex].m_totalDistance,
+            CAR_POSITION: data.m_lapData[data.m_header.m_playerCarIndex].m_carPosition,
+            CURRENT_LAP_NUM: data.m_lapData[data.m_header.m_playerCarIndex].m_currentLapNum,
+            PIT_STATUS: data.m_lapData[data.m_header.m_playerCarIndex].m_pitStatus,
+            NUM_PIT_STOPS: data.m_lapData[data.m_header.m_playerCarIndex].m_numPitStops,
+            SECTOR: data.m_lapData[data.m_header.m_playerCarIndex].m_sector,
+            WARNINGS: data.m_lapData[data.m_header.m_playerCarIndex].m_warnings,
+            GRID_POSITION: data.m_lapData[data.m_header.m_playerCarIndex].m_gridPosition,
+            PIT_LANE_TIME_IN_LANE: data.m_lapData[data.m_header.m_playerCarIndex].m_pitLaneTimeInLaneInMS,
+            PIT_STOP_TIMER: data.m_lapData[data.m_header.m_playerCarIndex].m_pitStopTimerInMS,
+        };
+        
+        const key = 'lapData'
+        const value = await schemaRegistryClient.encode(lapDataSchema,lapData)
+        producer.send({
+            topic:'lapDataStream',
+            messages:[{key,value}]
+        })
         // console.log(lapData)
     });
 
@@ -115,15 +128,13 @@ async function sendData() {
             TYRESPRESSURE: data.m_carTelemetryData[data.m_header.m_playerCarIndex].m_tyresPressure,
             SURFACETYPE: data.m_carTelemetryData[data.m_header.m_playerCarIndex].m_surfaceType
           };
-          
-        console.log(telemetryData)
+        console.log(telemetryData.TYRESSURFACETEMPERATURE)
         const key = 'telemetryData'
         const value = await schemaRegistryClient.encode(telemetryDataSchema,telemetryData)
         producer.send({
-            topic:'telemetryDataStream',
+            topic:'telemetryData',
             messages:[{key,value}]
-        })
-
+    })
     });
 
     f122.on('sessionHistory', function (data) {
@@ -146,5 +157,3 @@ async function sendData() {
     });
 }
 sendData();
-
-

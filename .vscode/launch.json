@@ -11,7 +11,7 @@
             "skipFiles": [
                 "<node_internals>/**"
             ],
-            "program": "${workspaceFolder}\\dist\\f122.js",
+            "program": "${workspaceFolder}\\dist\\TelemetryIngestion.js",
             "outFiles": [
                 "${workspaceFolder}/**/*.js"
             ]

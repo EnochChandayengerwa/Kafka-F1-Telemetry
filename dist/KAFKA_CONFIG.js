@@ -13,8 +13,8 @@ exports.KAFKA_CONFIG = {
 exports.SCHEMA_REGISTRY_CONFIG = {
     host: 'https://psrc-yoz1k.eu-central-1.aws.confluent.cloud',
     auth: {
-        username: '2JJO6O2F3G3T7Z2A',
-        password: 'Rw9Az3Q0Ac3t9/duX60gEFj35j/VrXxu63OXCHBULn9leJxi8sq66klH9xl+qt2N',
+        username: 'JUMQVZV3IV3QKACD',
+        password: 'C0vtsxjrQbjeEkHZYOTWFAocn5Dm1zkqtMHnKjf2zUcbii0QLaWbhmqraJ+qef+a',
     },
 };
 //# sourceMappingURL=KAFKA_CONFIG.js.map

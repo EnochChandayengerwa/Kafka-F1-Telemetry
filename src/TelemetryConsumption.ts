@@ -19,19 +19,19 @@ const wss = new WebSocket.Server({ server });
 wss.on('connection', (ws: WebSocket) => {
   console.log('WebSocket client connected');
 
-  // Subscribe to Kafka topic when a client connects
+  // Subscribe to Kafka topics when a client connects
   const groupId = uuid();
   const consumer = kafka.consumer({ groupId });
   consumer.connect().then(() => {
-    consumer.subscribe({ topic: 'telemetryDataStream' });
+    consumer.subscribe({ topics: ['telemetryData', 'motionDataStream'] });
 
     consumer.run({
-      eachMessage: async ({ message }: EachMessagePayload) => {
+      eachMessage: async ({ topic, message }: EachMessagePayload) => {
         const key = message.key ? message.key.toString() : null;
         const value = message.value ? await schemaRegistryClient.decode(message.value) : null;
 
         // Send the value object as JSON to the WebSocket client
-        ws.send(JSON.stringify(value));
+        ws.send(JSON.stringify({ topic, key, value }));
       },
     });
   });

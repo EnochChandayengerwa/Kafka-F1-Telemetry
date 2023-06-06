@@ -28,17 +28,17 @@ const server = (0, http_1.createServer)(app);
 const wss = new ws_1.default.Server({ server });
 wss.on('connection', (ws) => {
     console.log('WebSocket client connected');
-    // Subscribe to Kafka topic when a client connects
+    // Subscribe to Kafka topics when a client connects
     const groupId = (0, uuid_1.v4)();
     const consumer = kafka.consumer({ groupId });
     consumer.connect().then(() => {
-        consumer.subscribe({ topic: 'telemetryDataStream' });
+        consumer.subscribe({ topics: ['telemetryData', 'motionDataStream'] });
         consumer.run({
-            eachMessage: ({ message }) => __awaiter(void 0, void 0, void 0, function* () {
+            eachMessage: ({ topic, message }) => __awaiter(void 0, void 0, void 0, function* () {
                 const key = message.key ? message.key.toString() : null;
                 const value = message.value ? yield schemaRegistryClient.decode(message.value) : null;
                 // Send the value object as JSON to the WebSocket client
-                ws.send(JSON.stringify(value));
+                ws.send(JSON.stringify({ topic, key, value }));
             }),
         });
     });
@@ -53,4 +53,4 @@ const port = 3000;
 server.listen(port, () => {
     console.log(`Server is listening on port ${port}`);
 });
-//# sourceMappingURL=engineerDashboard.js.map
+//# sourceMappingURL=TelemetryConsumption.js.map
