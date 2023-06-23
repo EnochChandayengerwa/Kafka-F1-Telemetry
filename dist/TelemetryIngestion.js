@@ -9,22 +9,18 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const confluent_schema_registry_1 = require("@kafkajs/confluent-schema-registry");
 const f1_22_udp_1 = require("f1-22-udp");
 const kafkajs_1 = require("kafkajs");
 const KAFKA_CONFIG_1 = require("./KAFKA_CONFIG");
 function sendData() {
     return __awaiter(this, void 0, void 0, function* () {
         const kafka = new kafkajs_1.Kafka(KAFKA_CONFIG_1.KAFKA_CONFIG);
-        const schemaRegistryClient = new confluent_schema_registry_1.SchemaRegistry(KAFKA_CONFIG_1.SCHEMA_REGISTRY_CONFIG);
-        const telemetryDataSchema = yield schemaRegistryClient.getLatestSchemaId('telemetryData-value');
-        const motionDataSchema = yield schemaRegistryClient.getLatestSchemaId('motionDataStream-value');
-        const lapDataSchema = yield schemaRegistryClient.getLatestSchemaId('lapDataStream-value');
+        var lapData, motionData, telemetryData;
         const producer = kafka.producer();
         yield producer.connect();
-        var sessionData, lapData, setupData, motionData, historyData, telemetryData;
         const f122 = new f1_22_udp_1.F122UDP();
         f122.start();
+        // Positional Telemetry
         f122.on('motion', function (data) {
             return __awaiter(this, void 0, void 0, function* () {
                 const playerCarIndex = data.m_header.m_playerCarIndex;
@@ -40,32 +36,64 @@ function sendData() {
                         Z: car.m_worldPositionZ
                     }))
                 };
-                const key = 'motionData';
-                const value = yield schemaRegistryClient.encode(motionDataSchema, motionData);
+                if (motionData && lapData && telemetryData) {
+                    var combinedData = {
+                        PLAYERCARPOSITIONX: motionData.PLAYERCARPOSITIONX,
+                        PLAYERCARPOSITIONY: motionData.PLAYERCARPOSITIONY,
+                        CURRENTLAPTIME: lapData.CURRENT_LAP_TIME,
+                        SPEED: telemetryData.SPEED,
+                        THROTTLE: telemetryData.THROTTLE,
+                        STEER: telemetryData.STEER,
+                        BRAKE: telemetryData.BRAKE,
+                        GEAR: telemetryData.GEAR
+                    };
+                    const key = 'mlStream';
+                    const value = JSON.stringify(combinedData);
+                    producer.send({
+                        topic: 'mlStream',
+                        messages: [{ key, value }],
+                    });
+                    console.log(combinedData);
+                }
+                const key = 'positionStream';
+                const value = JSON.stringify(motionData);
                 producer.send({
-                    topic: 'motionDataStream',
-                    messages: [{ key, value }]
+                    topic: 'positionStream',
+                    messages: [{ key, value }],
                 });
-                // console.log(motionData);
+                motionData = null;
+                lapData = null;
+                telemetryData = null;
             });
         });
-        f122.on('session', function (data) {
+        // Car Telemetry
+        f122.on('carTelemetry', function (data) {
             return __awaiter(this, void 0, void 0, function* () {
-                sessionData = {
-                    weather: data.m_weather,
-                    trackTemperature: data.m_trackTemperature,
-                    airTemperature: data.m_airTemperature,
-                    totalLaps: data.m_totalLaps,
-                    trackLength: data.m_trackLength,
-                    sessionType: data.m_sessionType,
-                    numWeatherForecastSamples: data.m_numWeatherForecastSamples,
-                    forecastAccuracy: data.m_forecastAccuracy,
-                    pitStopWindowIdealLap: data.m_pitStopWindowIdealLap,
-                    pitStopWindowLatestLap: data.m_pitStopWindowLatestLap,
-                    pitStopRejoinPosition: data.m_pitStopRejoinPosition
+                telemetryData = {
+                    SPEED: data.m_carTelemetryData[data.m_header.m_playerCarIndex].m_speed,
+                    THROTTLE: data.m_carTelemetryData[data.m_header.m_playerCarIndex].m_throttle,
+                    STEER: data.m_carTelemetryData[data.m_header.m_playerCarIndex].m_steer,
+                    BRAKE: data.m_carTelemetryData[data.m_header.m_playerCarIndex].m_brake,
+                    CLUTCH: data.m_carTelemetryData[data.m_header.m_playerCarIndex].m_clutch,
+                    GEAR: data.m_carTelemetryData[data.m_header.m_playerCarIndex].m_gear,
+                    ENGINERPM: data.m_carTelemetryData[data.m_header.m_playerCarIndex].m_engineRPM,
+                    DRS: data.m_carTelemetryData[data.m_header.m_playerCarIndex].m_drs,
+                    BRAKESTEMPERATURE: data.m_carTelemetryData[data.m_header.m_playerCarIndex].m_brakesTemperature,
+                    TYRESSURFACETEMPERATURE: data.m_carTelemetryData[data.m_header.m_playerCarIndex].m_tyresSurfaceTemperature,
+                    TYRESINNERTEMPERATURE: data.m_carTelemetryData[data.m_header.m_playerCarIndex].m_tyresInnerTemperature,
+                    ENGINETEMPERATURE: data.m_carTelemetryData[data.m_header.m_playerCarIndex].m_engineTemperature,
+                    TYRESPRESSURE: data.m_carTelemetryData[data.m_header.m_playerCarIndex].m_tyresPressure,
+                    SURFACETYPE: data.m_carTelemetryData[data.m_header.m_playerCarIndex].m_surfaceType
                 };
+                const key = 'telemetryStream';
+                const value = JSON.stringify(telemetryData);
+                producer.send({
+                    topic: 'telemetryStream',
+                    messages: [{ key, value }],
+                });
             });
         });
+        // Lap Telemetry
         f122.on('lapData', function (data) {
             return __awaiter(this, void 0, void 0, function* () {
                 lapData = {
@@ -85,83 +113,13 @@ function sendData() {
                     PIT_LANE_TIME_IN_LANE: data.m_lapData[data.m_header.m_playerCarIndex].m_pitLaneTimeInLaneInMS,
                     PIT_STOP_TIMER: data.m_lapData[data.m_header.m_playerCarIndex].m_pitStopTimerInMS,
                 };
-                const key = 'lapData';
-                const value = yield schemaRegistryClient.encode(lapDataSchema, lapData);
+                const key = 'lapDataStream';
+                const value = JSON.stringify(lapData);
                 producer.send({
                     topic: 'lapDataStream',
-                    messages: [{ key, value }]
-                });
-                // console.log(lapData)
-            });
-        });
-        f122.on('carSetups', function (data) {
-            setupData = {
-                frontWing: data.m_carSetups[data.m_header.m_playerCarIndex].m_frontWing,
-                rearWing: data.m_carSetups[data.m_header.m_playerCarIndex].m_rearWing,
-                onThrottle: data.m_carSetups[data.m_header.m_playerCarIndex].m_onThrottle,
-                offThrottle: data.m_carSetups[data.m_header.m_playerCarIndex].m_offThrottle,
-                frontCamber: data.m_carSetups[data.m_header.m_playerCarIndex].m_frontCamber,
-                rearCamber: data.m_carSetups[data.m_header.m_playerCarIndex].m_rearCamber,
-                frontToe: data.m_carSetups[data.m_header.m_playerCarIndex].m_frontToe,
-                rearToe: data.m_carSetups[data.m_header.m_playerCarIndex].m_rearToe,
-                frontSuspension: data.m_carSetups[data.m_header.m_playerCarIndex].m_frontSuspension,
-                rearSuspension: data.m_carSetups[data.m_header.m_playerCarIndex].m_rearSuspension,
-                frontSuspensionHeight: data.m_carSetups[data.m_header.m_playerCarIndex].m_frontSuspensionHeight,
-                rearSuspensionHeight: data.m_carSetups[data.m_header.m_playerCarIndex].m_rearSuspensionHeight,
-                brakePressure: data.m_carSetups[data.m_header.m_playerCarIndex].m_brakePressure,
-                brakeBias: data.m_carSetups[data.m_header.m_playerCarIndex].m_brakeBias,
-                rearLeftTyrePressure: data.m_carSetups[data.m_header.m_playerCarIndex].m_rearLeftTyrePressure,
-                rearRightTyrePressure: data.m_carSetups[data.m_header.m_playerCarIndex].m_rearRightTyrePressure,
-                frontLeftTyrePressure: data.m_carSetups[data.m_header.m_playerCarIndex].m_frontLeftTyrePressure,
-                frontRightTyrePressure: data.m_carSetups[data.m_header.m_playerCarIndex].m_frontRightTyrePressure,
-                ballast: data.m_carSetups[data.m_header.m_playerCarIndex].m_ballast,
-                fuelLoad: data.m_carSetups[data.m_header.m_playerCarIndex].m_fuelLoad
-            };
-            // console.log(setupData)
-        });
-        f122.on('carTelemetry', function (data) {
-            return __awaiter(this, void 0, void 0, function* () {
-                telemetryData = {
-                    SPEED: data.m_carTelemetryData[data.m_header.m_playerCarIndex].m_speed,
-                    THROTTLE: data.m_carTelemetryData[data.m_header.m_playerCarIndex].m_throttle,
-                    STEER: data.m_carTelemetryData[data.m_header.m_playerCarIndex].m_steer,
-                    BRAKE: data.m_carTelemetryData[data.m_header.m_playerCarIndex].m_brake,
-                    CLUTCH: data.m_carTelemetryData[data.m_header.m_playerCarIndex].m_clutch,
-                    GEAR: data.m_carTelemetryData[data.m_header.m_playerCarIndex].m_gear,
-                    ENGINERPM: data.m_carTelemetryData[data.m_header.m_playerCarIndex].m_engineRPM,
-                    DRS: data.m_carTelemetryData[data.m_header.m_playerCarIndex].m_drs,
-                    BRAKESTEMPERATURE: data.m_carTelemetryData[data.m_header.m_playerCarIndex].m_brakesTemperature,
-                    TYRESSURFACETEMPERATURE: data.m_carTelemetryData[data.m_header.m_playerCarIndex].m_tyresSurfaceTemperature,
-                    TYRESINNERTEMPERATURE: data.m_carTelemetryData[data.m_header.m_playerCarIndex].m_tyresInnerTemperature,
-                    ENGINETEMPERATURE: data.m_carTelemetryData[data.m_header.m_playerCarIndex].m_engineTemperature,
-                    TYRESPRESSURE: data.m_carTelemetryData[data.m_header.m_playerCarIndex].m_tyresPressure,
-                    SURFACETYPE: data.m_carTelemetryData[data.m_header.m_playerCarIndex].m_surfaceType
-                };
-                console.log(telemetryData.TYRESSURFACETEMPERATURE);
-                const key = 'telemetryData';
-                const value = yield schemaRegistryClient.encode(telemetryDataSchema, telemetryData);
-                producer.send({
-                    topic: 'telemetryData',
-                    messages: [{ key, value }]
+                    messages: [{ key, value }],
                 });
             });
-        });
-        f122.on('sessionHistory', function (data) {
-            historyData = {
-                lapTimeInMS: data.m_lapHistoryData[data.m_header.m_playerCarIndex].m_lapTimeInMS,
-                sector1TimeInMS: data.m_lapHistoryData[data.m_header.m_playerCarIndex].m_sector1TimeInMS,
-                sector2TimeInMS: data.m_lapHistoryData[data.m_header.m_playerCarIndex].m_sector2TimeInMS,
-                sector3TimeInMS: data.m_lapHistoryData[data.m_header.m_playerCarIndex].m_sector3TimeInMS,
-                //@ts-ignore
-                tyreActualCompound: data.tyreActualCompound,
-                numLaps: data.m_numLaps,
-                numTyreStints: data.m_numTyreStints,
-                bestLapTimeLapNum: data.m_bestLapTimeLapNum,
-                bestSector1LapNum: data.m_bestSector1LapNum,
-                bestSector2LapNum: data.m_bestSector2LapNum,
-                bestSector3LapNum: data.m_bestSector3LapNum
-            };
-            // console.log(historyData)
         });
     });
 }

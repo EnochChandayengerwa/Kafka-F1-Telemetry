@@ -17,10 +17,8 @@ const http_1 = require("http");
 const ws_1 = __importDefault(require("ws"));
 const kafkajs_1 = require("kafkajs");
 const KAFKA_CONFIG_1 = require("./KAFKA_CONFIG");
-const confluent_schema_registry_1 = require("@kafkajs/confluent-schema-registry");
 const uuid_1 = require("uuid");
 const kafka = new kafkajs_1.Kafka(KAFKA_CONFIG_1.KAFKA_CONFIG);
-const schemaRegistryClient = new confluent_schema_registry_1.SchemaRegistry(KAFKA_CONFIG_1.SCHEMA_REGISTRY_CONFIG);
 // Create an Express app
 const app = (0, express_1.default)();
 const server = (0, http_1.createServer)(app);
@@ -31,16 +29,22 @@ wss.on('connection', (ws) => {
     // Subscribe to Kafka topics when a client connects
     const groupId = (0, uuid_1.v4)();
     const consumer = kafka.consumer({ groupId });
-    consumer.connect().then(() => {
-        consumer.subscribe({ topics: ['telemetryData', 'motionDataStream'] });
-        consumer.run({
+    const runConsumer = () => __awaiter(void 0, void 0, void 0, function* () {
+        yield consumer.connect();
+        yield consumer.subscribe({ topic: 'telemetryStream' });
+        yield consumer.subscribe({ topic: 'positionStream' });
+        yield consumer.subscribe({ topic: 'lapDataStream' });
+        yield consumer.run({
             eachMessage: ({ topic, message }) => __awaiter(void 0, void 0, void 0, function* () {
                 const key = message.key ? message.key.toString() : null;
-                const value = message.value ? yield schemaRegistryClient.decode(message.value) : null;
+                const value = message.value ? JSON.parse(message.value.toString()) : null;
                 // Send the value object as JSON to the WebSocket client
                 ws.send(JSON.stringify({ topic, key, value }));
             }),
         });
+    });
+    runConsumer().catch((error) => {
+        console.error('Error running Kafka consumer:', error);
     });
     ws.on('close', () => {
         console.log('WebSocket client disconnected');

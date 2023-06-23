@@ -104,111 +104,111 @@
       const socket = new WebSocket('ws://localhost:3000');
       const threejsContainer = document.getElementById('threejs-container');
 
-      //ThreeJS
       // Create the scene
-    const scene = new THREE.Scene();
+      const scene = new THREE.Scene();
 
-// Create the camera
-const camera = new THREE.PerspectiveCamera(
-  75, // Field of view
-  (window.innerWidth/2) / (window.innerHeight/1.2), // Aspect ratio
-  0.1, // Near clipping plane
-  1000 // Far clipping plane
-);
-camera.position.set(10, 5, 0); // Position the camera
-camera.lookAt(0, 0, 0); // Set the camera's focus point
+      // Create the camera
+      const camera = new THREE.PerspectiveCamera(
+        75, // Field of view
+        (window.innerWidth/2) / (window.innerHeight/1.2), // Aspect ratio
+        0.1, // Near clipping plane
+        1000 // Far clipping plane
+      );
+      camera.position.set(10, 5, 0); // Position the camera
+      camera.lookAt(0, 0, 0); // Set the camera's focus point
 
-// Create the renderer
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setClearColor(0xffffff);
-renderer.setSize(window.innerWidth/2, window.innerHeight/1.2);
-threejsContainer.appendChild(renderer.domElement);
+      // Create the renderer
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setClearColor(0xffffff);
+      renderer.setSize(window.innerWidth/2, window.innerHeight/1.2);
+      threejsContainer.appendChild(renderer.domElement);
 
 
-// Create the grid
-const size = 10; // Size of the grid
-const divisions = 10; // Number of divisions
-const gridHelper = new THREE.GridHelper(size, divisions);
-gridHelper.material.opacity = 0.2;
-gridHelper.material.transparent = true;
+      // Create the grid
+      const size = 10; // Size of the grid
+      const divisions = 10; // Number of divisions
+      const gridHelper = new THREE.GridHelper(size, divisions);
+      gridHelper.material.opacity = 0.2;
+      gridHelper.material.transparent = true;
 
-scene.add(gridHelper);
+      scene.add(gridHelper);
 
-// Create an array to store the track points
-const trackPoints = [];
+      // Create an array to store the track points
+      const trackPoints = [];
 
-// Define the maximum number of track points
-const maxTrackPoints = 1000;
+      // Define the maximum number of track points
+      const maxTrackPoints = 1000;
 
-// Create the glowing dot
-const dotRadius = 0.15;
-const dotGeometry = new THREE.SphereGeometry(dotRadius, 32, 32);
-const dotMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-const dotGlowMaterial = new THREE.MeshBasicMaterial({ color: 0xe4e4e4 , transparent: true, blending: THREE.AdditiveBlending });
-const dot = new THREE.Mesh(dotGeometry, dotMaterial);
-const dotGlow = new THREE.Mesh(dotGeometry, dotGlowMaterial);
-dotGlow.scale.multiplyScalar(1.3); // Adjust the scale of the glow effect
-dot.add(dotGlow);
-scene.add(dot);
+      // Create the glowing dot
+      const dotRadius = 0.15;
+      const dotGeometry = new THREE.SphereGeometry(dotRadius, 32, 32);
+      const dotMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+      const dotGlowMaterial = new THREE.MeshBasicMaterial({ color: 0xe4e4e4 , transparent: true, blending: THREE.AdditiveBlending });
+      const dot = new THREE.Mesh(dotGeometry, dotMaterial);
+      const dotGlow = new THREE.Mesh(dotGeometry, dotGlowMaterial);
+      dotGlow.scale.multiplyScalar(1.3); // Adjust the scale of the glow effect
+      dot.add(dotGlow);
+      scene.add(dot);
 
-// Create the track line
-const trackMaterial = new THREE.LineBasicMaterial({ color: 0x909090 });
-const trackGeometry = new THREE.BufferGeometry();
-const trackLine = new THREE.Line(trackGeometry, trackMaterial);
-scene.add(trackLine);
+      // Create the track line
+      const trackMaterial = new THREE.LineBasicMaterial({ color: 0x909090 });
+      const trackGeometry = new THREE.BufferGeometry();
+      const trackLine = new THREE.Line(trackGeometry, trackMaterial);
+      scene.add(trackLine);
 
-// Handle WebSocket messages
-socket.onmessage = function(event) {
-  const data = JSON.parse(event.data);
-  if (data.topic === 'motionDataStream' && data.key === 'motionData') {
-    const PLAYERCARPOSITION = {
-      PLAYERCARPOSITIONX: data.value.PLAYERCARPOSITIONX,
-      PLAYERCARPOSITIONY: data.value.PLAYERCARPOSITIONY,
-      PLAYERCARPOSITIONZ: data.value.PLAYERCARPOSITIONZ,
-    }
-    updateRedDotPosition(PLAYERCARPOSITION);
-  }
-};
+      // Handle WebSocket messages
+      socket.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+        if (data.topic === 'positionStream' && data.key === 'positionStream') {
+          const PLAYERCARPOSITION = {
+            PLAYERCARPOSITIONX: data.value.PLAYERCARPOSITIONX,
+            PLAYERCARPOSITIONY: data.value.PLAYERCARPOSITIONY,
+            PLAYERCARPOSITIONZ: data.value.PLAYERCARPOSITIONZ,
+          }
+          console.log(PLAYERCARPOSITION)
+          updateRedDotPosition(PLAYERCARPOSITION);
+        }
+      };
 
-// Update the position of the red dot based on the received car positional data
-function updateRedDotPosition(position) {
-  const x = position.PLAYERCARPOSITIONX / 150;
-  const y = position.PLAYERCARPOSITIONY / 50 +0.2;
-  const z = position.PLAYERCARPOSITIONZ / 150;
-  dot.position.set(x, y, z);
+      // Update the position of the red dot based on the received car positional data
+      function updateRedDotPosition(position) {
+        const x = position.PLAYERCARPOSITIONX / 150;
+        const y = position.PLAYERCARPOSITIONY / 50 +3;
+        const z = position.PLAYERCARPOSITIONZ / 150;
+        dot.position.set(x, y, z);
 
-  // Store the dot's position for track drawing if it's not already traced
-  if (!trackPoints.some(p => p.equals(dot.position))) {
-    trackPoints.push(dot.position.clone());
+        // Store the dot's position for track drawing if it's not already traced
+        if (!trackPoints.some(p => p.equals(dot.position))) {
+          trackPoints.push(dot.position.clone());
 
-    // Remove the oldest point if the maximum number of track points is reached
-    if (trackPoints.length > maxTrackPoints) {
-      trackPoints.shift();
-    }
+          // Remove the oldest point if the maximum number of track points is reached
+          if (trackPoints.length > maxTrackPoints) {
+            trackPoints.shift();
+          }
 
-    // Update the track line geometry
-    trackGeometry.setFromPoints(trackPoints);
-  }
-}
+          // Update the track line geometry
+          trackGeometry.setFromPoints(trackPoints);
+        }
+      }
 
-// Animation loop
-function animate() {
-  requestAnimationFrame(animate);
+      // Animation loop
+      function animate() {
+        requestAnimationFrame(animate);
 
-  const opacity = (Math.sin(Date.now() * 0.005) + 1) * 0.5; // Adjust the speed of opacity change here
-  dotGlowMaterial.opacity = opacity;
+        const opacity = (Math.sin(Date.now() * 0.005) + 1) * 0.5; // Adjust the speed of opacity change here
+        dotGlowMaterial.opacity = opacity;
 
-  // Rotate the camera around the road
-  const rotationSpeed = 0.00015;
-  camera.position.x = Math.cos(rotationSpeed * Date.now()) * 10;
-  camera.position.z = Math.sin(rotationSpeed * Date.now()) * 10;
-  camera.position.y = Math.abs(Math.sin(rotationSpeed * Date.now())) * 6 + 2;
-  camera.lookAt(0, 0, 0);
+        // Rotate the camera around the road
+        const rotationSpeed = 0.00015;
+        camera.position.x = Math.cos(rotationSpeed * Date.now()) * 10;
+        camera.position.z = Math.sin(rotationSpeed * Date.now()) * 10;
+        camera.position.y = Math.abs(Math.sin(rotationSpeed * Date.now())) * 6 + 2;
+        camera.lookAt(0, 0, 0);
 
-  renderer.render(scene, camera);
-}
+        renderer.render(scene, camera);
+      }
 
-animate();
+      animate();
 
       // Initialize throttle and brake chart
       const throttleBrakeCtx = document.getElementById('throttle-brake-chart').getContext('2d');
@@ -344,7 +344,7 @@ animate();
       socket.addEventListener('message', (event) => {
         const { data } = event;
         const telemetryData = JSON.parse(data);
-        if (telemetryData.topic === 'telemetryData') {
+        if (telemetryData.topic === 'telemetryStream') {
         const throttle = telemetryData.value.THROTTLE * 100;
         const brake = telemetryData.value.BRAKE * 100;
         const steering = telemetryData.value.STEER * 100;

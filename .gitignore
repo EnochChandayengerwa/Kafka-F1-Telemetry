@@ -1,3 +1,4 @@
 /node_modules
 /src/KAFKA_CONFIG.ts
 config kafka file.txt
+docker-compose.yml
