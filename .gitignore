@@ -4,3 +4,5 @@
 /dist/KAFKA_CONFIG.map
 config kafka file.txt
 docker-compose.yml
+dist/KAFKA_CONFIG.js
+dist/KAFKA_CONFIG.js.map
