@@ -15,9 +15,16 @@ const KAFKA_CONFIG_1 = require("./KAFKA_CONFIG");
 function sendData() {
     return __awaiter(this, void 0, void 0, function* () {
         const kafka = new kafkajs_1.Kafka(KAFKA_CONFIG_1.KAFKA_CONFIG);
-        var lapData, motionData, telemetryData;
-        const producer = kafka.producer();
-        yield producer.connect();
+        const producer = kafka.producer({ createPartitioner: kafkajs_1.Partitioners.LegacyPartitioner });
+        ;
+        try {
+            var lapData, motionData, telemetryData;
+            yield producer.connect();
+            console.log('Connected to cluster successfully!');
+        }
+        catch (error) {
+            console.error('Kafka connection error:', error);
+        }
         const f122 = new f1_22_udp_1.F122UDP();
         f122.start();
         // Positional Telemetry
@@ -36,37 +43,34 @@ function sendData() {
                         Z: car.m_worldPositionZ
                     }))
                 };
-                if (motionData && lapData && telemetryData) {
-                    var combinedData = {
-                        PLAYERCARPOSITIONX: motionData.PLAYERCARPOSITIONX,
-                        PLAYERCARPOSITIONY: motionData.PLAYERCARPOSITIONY,
-                        CURRENTLAPTIME: lapData.CURRENT_LAP_TIME,
-                        SPEED: telemetryData.SPEED,
-                        THROTTLE: telemetryData.THROTTLE,
-                        STEER: telemetryData.STEER,
-                        BRAKE: telemetryData.BRAKE,
-                        GEAR: telemetryData.GEAR
-                    };
-                    const key = 'mlStream';
-                    const value = JSON.stringify(combinedData);
-                    producer.send({
-                        topic: 'mlStream',
-                        messages: [{ key, value }],
-                    });
-                    console.log(combinedData);
-                }
+                // if(motionData&&lapData&&telemetryData){
+                //     var combinedData = {
+                //         PLAYERCARPOSITIONX: motionData.PLAYERCARPOSITIONX,
+                //         PLAYERCARPOSITIONY: motionData.PLAYERCARPOSITIONY,
+                //         CURRENTLAPTIME: lapData.CURRENT_LAP_TIME,
+                //         SPEED: telemetryData.SPEED,
+                //         THROTTLE: telemetryData.THROTTLE,
+                //         STEER: telemetryData.STEER,
+                //         BRAKE: telemetryData.BRAKE,
+                //         GEAR: telemetryData.GEAR
+                //     }
+                //     const key = 'mlStream';
+                //     const value = JSON.stringify(combinedData);
+                //     producer.send({
+                //     topic: 'mlStream',
+                //     messages: [{ key, value }],
+                // });
+                //     console.log(combinedData);
+                // }
                 const key = 'positionStream';
                 const value = JSON.stringify(motionData);
                 producer.send({
                     topic: 'positionStream',
                     messages: [{ key, value }],
                 });
-                motionData = null;
-                lapData = null;
-                telemetryData = null;
             });
         });
-        // Car Telemetry
+        // // Car Telemetry
         f122.on('carTelemetry', function (data) {
             return __awaiter(this, void 0, void 0, function* () {
                 telemetryData = {
@@ -91,9 +95,10 @@ function sendData() {
                     topic: 'telemetryStream',
                     messages: [{ key, value }],
                 });
+                console.log(telemetryData);
             });
         });
-        // Lap Telemetry
+        // // Lap Telemetry
         f122.on('lapData', function (data) {
             return __awaiter(this, void 0, void 0, function* () {
                 lapData = {
